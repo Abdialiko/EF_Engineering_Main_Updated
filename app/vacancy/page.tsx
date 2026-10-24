@@ -4,7 +4,7 @@ import Reveal from '../../components/Reveal'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { fetchApi } from '../../lib/api'
-import { formatJobDate, jobPreviewText } from '../../lib/jobContent'
+import { formatJobDate, isJobOpen, jobApplyHref, jobDetailsHref, jobPreviewText } from '../../lib/jobContent'
 import { 
   HiOutlineBriefcase, 
   HiOutlineClock, 
@@ -25,7 +25,9 @@ import {
 export default function Vacancy() {
   const [jobs, setJobs] = useState<any[]>([])
   const [filteredJobs, setFilteredJobs] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
   const [filters, setFilters] = useState({
     keyword: '',
     location: '',
@@ -36,23 +38,31 @@ export default function Vacancy() {
   })
 
   useEffect(() => {
+    let cancelled = false
     const load = async () => {
       try {
         setLoading(true)
-        const data = await fetchApi('jobs')
+        setLoadError('')
+        const data = await fetchApi('jobs', { cache: 'no-store' }, 0, false)
         const jobsData = Array.isArray(data) ? data : []
+        if (cancelled) return
         setJobs(jobsData)
         setFilteredJobs(jobsData)
       } catch (e) {
         console.error('Failed to load jobs:', e)
+        if (cancelled) return
         setJobs([])
         setFilteredJobs([])
+        setLoadError('We could not load open positions. Check your connection and try again.')
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
     load()
-  }, [])
+    return () => {
+      cancelled = true
+    }
+  }, [reloadKey])
 
   useEffect(() => {
     let filtered = [...jobs]
@@ -329,15 +339,32 @@ export default function Vacancy() {
                   <div key={i} className="h-48 bg-gray-200 animate-pulse rounded-xl" />
                 ))}
               </div>
+          ) : loadError ? (
+              <div className="text-center py-16 bg-white border-2 border-gray-200 rounded-xl px-4" role="alert">
+                <h3 className="text-2xl font-extrabold text-gray-900 mb-2">Unable to Load Vacancies</h3>
+                <p className="text-gray-600 mb-6">{loadError}</p>
+                <button
+                  type="button"
+                  onClick={() => setReloadKey((key) => key + 1)}
+                  className="inline-flex items-center gap-2 bg-[#F54927] text-white px-6 py-3 rounded-lg font-bold"
+                >
+                  Try Again
+                </button>
+              </div>
           ) : filteredJobs.length ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5">
                 {filteredJobs.map((job: any, i: number) => (
                   <Reveal key={job.id} variant="up" delay={Math.min(i, 8) * 40} className="h-full">
                     <article 
-                      className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex flex-col h-full min-h-[240px] overflow-hidden shadow-sm"
+                      className="relative bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex flex-col h-full min-h-[240px] overflow-hidden shadow-sm hover:border-[#F54927]/40"
                       aria-labelledby={`job-title-${job.id}`}
                     >
-                      <div className="flex-1 flex flex-col min-h-0">
+                      <Link
+                        href={jobDetailsHref(job.id)}
+                        className="absolute inset-0 z-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F54927] focus-visible:ring-offset-2"
+                        aria-label={`View details for ${job.title || 'this position'}`}
+                      />
+                      <div className="relative z-10 pointer-events-none flex-1 flex flex-col min-h-0">
                         <div className="flex flex-col gap-2 mb-3 min-w-0">
                           <span className="inline-flex items-center self-start px-2 py-1 text-xs font-semibold rounded-full bg-[#F54927]/10 text-[#F54927]">
                             {job.type || 'Full-time'}
@@ -370,23 +397,25 @@ export default function Vacancy() {
                         </div>
                   </div>
                     
-                      <div className="flex flex-col gap-2 pt-3 border-t border-gray-200 mt-auto flex-shrink-0">
+                      <div className="relative z-10 pointer-events-none flex flex-col gap-2 pt-3 border-t border-gray-200 mt-auto flex-shrink-0">
                         <Link
-                          href={`/vacancy/${job.id}`}
-                          className="w-full inline-flex items-center justify-center gap-2 bg-gray-100 text-gray-700 px-3 py-2 rounded-lg font-semibold focus:outline-none focus:ring-2 focus:ring-[#F54927] focus:ring-offset-2 text-sm"
+                          href={jobDetailsHref(job.id)}
+                          className="pointer-events-auto w-full inline-flex items-center justify-center gap-2 bg-gray-100 text-gray-700 px-3 py-2 rounded-lg font-semibold focus:outline-none focus:ring-2 focus:ring-[#F54927] focus:ring-offset-2 text-sm"
                           aria-label={`View details for ${job.title}`}
                       >
                         View Details
                           <HiOutlineArrowRight className="w-4 h-4" />
                         </Link>
+                      {isJobOpen(job) && (
                       <Link
-                        href={`/application/${job.id}`}
-                          className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#F54927] to-[#d63e1f] text-white px-3 py-2 rounded-lg font-semibold focus:outline-none focus:ring-2 focus:ring-[#F54927] focus:ring-offset-2 text-sm"
+                        href={jobApplyHref(job.id)}
+                          className="pointer-events-auto w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#F54927] to-[#d63e1f] text-white px-3 py-2 rounded-lg font-semibold focus:outline-none focus:ring-2 focus:ring-[#F54927] focus:ring-offset-2 text-sm"
                           aria-label={`Apply for ${job.title}`}
                       >
                         Apply Now
                           <HiOutlineArrowRight className="w-4 h-4" />
                       </Link>
+                      )}
                   </div>
                     </article>
                   </Reveal>

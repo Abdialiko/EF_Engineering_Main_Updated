@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { HiOutlineXMark, HiOutlineCalendar, HiOutlineClock, HiOutlineMapPin, HiOutlineBriefcase, HiOutlineArrowRight, HiOutlineCheckCircle, HiOutlineSparkles, HiOutlineLightBulb, HiOutlineRocketLaunch, HiOutlineHeart } from 'react-icons/hi2'
 import Link from 'next/link'
-import { formatJobDate, sanitizeJobHtml } from '../lib/jobContent'
+import { formatJobDate, jobApplyHref, sanitizeJobHtml } from '../lib/jobContent'
 
 interface VacancyModalProps {
   job: any
@@ -149,7 +149,7 @@ export default function VacancyModal({ job, isOpen, onClose }: VacancyModalProps
             Close
           </button>
           <Link
-            href={`/application/${job.id}`}
+            href={jobApplyHref(job.id)}
             onClick={onClose}
             className="inline-flex items-center justify-center gap-2 sm:gap-3 bg-gradient-to-r from-[#F54927] to-[#d63e1f] hover:from-[#042970] hover:to-[#042970] text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-lg sm:rounded-xl font-bold transition-all duration-300 hover:scale-105 hover:shadow-xl group animated-gradient text-sm sm:text-base"
           >

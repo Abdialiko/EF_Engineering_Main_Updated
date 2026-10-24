@@ -1,0 +1,14 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Vacancies posted after the last static export have no /vacancy/{id}/ folder.
+  # Send those requests to the permanent details and application pages, which
+  # load the record from the API. Real files and the details/apply routes stay put.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^vacancy/(?!details$)([A-Za-z0-9_-]+)/?$ /vacancy/details/?id=$1 [R=302,L]
+
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^application/(?!apply$)([A-Za-z0-9_-]+)/?$ /application/apply/?id=$1 [R=302,L]
+</IfModule>

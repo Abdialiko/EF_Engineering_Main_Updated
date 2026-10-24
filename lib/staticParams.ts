@@ -20,7 +20,7 @@ export async function generateIdParams(
   options?: { emptyFallbackId?: string }
 ): Promise<{ id: string }[]> {
   const url = `${API_ORIGIN}/${resource}`
-  const response = await fetch(url, { cache: 'force-cache' })
+  const response = await fetch(url, { cache: 'no-store' })
   if (!response.ok) {
     throw new Error(
       `Static export could not list ${resource} from ${url} (HTTP ${response.status}). Detail pages were not removed.`

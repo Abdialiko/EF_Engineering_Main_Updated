@@ -49,6 +49,7 @@ export default function RootLayout({
         />
         <link rel="dns-prefetch" href="https://api.efengineering-architect.com" />
         <link rel="preconnect" href="https://api.efengineering-architect.com" crossOrigin="anonymous" />
+        <script src="/job-route.js" />
       </head>
       <body suppressHydrationWarning className="antialiased">
         <Header />

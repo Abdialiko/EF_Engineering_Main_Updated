@@ -476,6 +476,14 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
   }
 
   const submitApplication = async () => {
+    if (!personalData.job_id) {
+      setErrors(prev => ({
+        ...prev,
+        notify: 'This application is missing its vacancy reference. Open the vacancy and choose Apply Now again.'
+      }))
+      return
+    }
+
     // Validate CV file before submission
     if (!personalData.cv) {
       setErrors(prev => ({ ...prev, cv: 'CV is required' }))
@@ -905,6 +913,14 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
 
   return (
     <div className="space-y-3">
+      {(jobTitle || personalData.job_id) && (
+        <div className="bg-white border border-gray-200 rounded-lg px-3 py-2">
+          <p className="text-sm font-semibold text-gray-900">Applying for {jobTitle || 'this vacancy'}</p>
+          {personalData.job_id && (
+            <p className="text-xs text-gray-600">Vacancy reference: {personalData.job_id}</p>
+          )}
+        </div>
+      )}
       {/* Progress Indicator - Dynamic Based on Field Completion */}
       <div className="bg-white border border-[#042970] rounded-lg p-3 shadow-sm lg:sticky lg:top-24 z-20">
         <div className="mb-3">

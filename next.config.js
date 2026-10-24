@@ -27,6 +27,9 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   reactStrictMode: true,
+  // LiteSpeed redirects extensionless URLs to a trailing slash. Export each
+  // route as a directory index so /vacancy/ and /about/ resolve on that host.
+  trailingSlash: true,
   // Production optimizations
   productionBrowserSourceMaps: false, // Disable source maps in production for smaller bundles
   // Static HTML export written to out/ for deployment without a Next.js server.
