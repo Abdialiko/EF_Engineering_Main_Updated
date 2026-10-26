@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import apiCall from '../lib/apiCall'
 import { 
   HiOutlineUser, 
   HiOutlineEnvelope, 
@@ -40,7 +39,6 @@ interface EducationalData {
   study_field: string
   company: string
   degree_type: string
-  cgpa: string
   start_date: string
   end_date: string
 }
@@ -181,25 +179,6 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
       errors.degree_type = 'Qualification name is required'
     } else if (data.degree_type.trim().length > 70) {
       errors.degree_type = 'Please enter shorter qualification name'
-    }
-    
-    // Validate CGPA - must be a valid number
-    if (!data.cgpa?.trim()) {
-      errors.cgpa = 'Final grade (CGPA) is required'
-    } else {
-      const cgpaValue = data.cgpa.trim()
-      // Check if it's a valid number (allows decimals like 3.5, 4.0, etc.)
-      const numericRegex = /^\d+(\.\d+)?$/
-      if (!numericRegex.test(cgpaValue)) {
-        errors.cgpa = 'CGPA must be a valid number (e.g., 3.5 or 4.0)'
-      } else {
-        const numValue = parseFloat(cgpaValue)
-        if (isNaN(numValue)) {
-          errors.cgpa = 'CGPA must be a valid number'
-        } else if (numValue < 0 || numValue > 5) {
-          errors.cgpa = 'CGPA must be between 0 and 5'
-        }
-      }
     }
     
     if (!data.start_date) {
@@ -353,7 +332,6 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
     study_field: '',
     company: '',
     degree_type: '',
-    cgpa: '',
     start_date: '',
     end_date: ''
   })
@@ -361,18 +339,20 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
   const [showEducationToast, setShowEducationToast] = useState(false)
 
   const addEducation = () => {
-    const errorValues = validateEducationalInfo(currentEducation)
-    if (Object.keys(errorValues).length > 0) {
-      setEducationErrors(errorValues)
-      return
-    }
-    
+    const hasValue = [
+      currentEducation.study_field,
+      currentEducation.company,
+      currentEducation.degree_type,
+      currentEducation.start_date,
+      currentEducation.end_date
+    ].some((value) => value.trim())
+    if (!hasValue) return
+
     setEducationalData(prev => [...prev, currentEducation])
     setCurrentEducation({
       study_field: '',
       company: '',
       degree_type: '',
-      cgpa: '',
       start_date: '',
       end_date: ''
     })
@@ -397,11 +377,15 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
   const [showExperienceToast, setShowExperienceToast] = useState(false)
 
   const addExperience = () => {
-    const errorValues = validateExperienceInfo(currentExperience)
-    if (Object.keys(errorValues).length > 0) {
-      setExperienceErrors(errorValues)
-      return
-    }
+    const hasValue = [
+      currentExperience.title,
+      currentExperience.company,
+      currentExperience.start_date,
+      currentExperience.end_date,
+      currentExperience.summary
+    ].some((value) => value?.trim())
+    if (!hasValue) return
+
     
     setExperiences(prev => [...prev, currentExperience])
     setCurrentExperience({
@@ -431,11 +415,10 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
   const [showCertificateToast, setShowCertificateToast] = useState(false)
 
   const addCertificate = () => {
-    const errorValues = validateCertificateInfo(currentCertificate)
-    if (Object.keys(errorValues).length > 0) {
-      setCertificateErrors(errorValues)
-      return
-    }
+    const hasValue = [currentCertificate.title, currentCertificate.issuer, currentCertificate.date, currentCertificate.summary]
+      .some((value) => value.trim())
+    if (!hasValue) return
+
     
     setCertificates(prev => [...prev, currentCertificate])
     setCurrentCertificate({
@@ -481,6 +464,13 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
         ...prev,
         notify: 'This application is missing its vacancy reference. Open the vacancy and choose Apply Now again.'
       }))
+      return
+    }
+
+    const personalErrors = validatePersonalInfo(personalData)
+    if (Object.keys(personalErrors).length > 0) {
+      setErrors(personalErrors)
+      setCurrentStep(1)
       return
     }
 
@@ -542,15 +532,10 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
       // Original code: applicant.append("supporting_doc",personalData.supporting_doc)
       formData.append('supporting_doc', personalData.supporting_doc)
       
-      // Add education data - ensure CGPA is numeric
+      // Add education data. This step is optional.
       if (educationalData.length > 0) {
         educationalData.forEach((data, i) => {
-          // Sanitize CGPA to ensure it's a valid number
-          const sanitizedData = {
-            ...data,
-            cgpa: data.cgpa ? parseFloat(data.cgpa.trim()) || 0 : 0
-          }
-          formData.append(`education[${i}],`, JSON.stringify(sanitizedData))
+          formData.append(`education[${i}],`, JSON.stringify(data))
         })
       }
       
@@ -588,80 +573,59 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
       // Use axios instead of fetch to match original implementation
       // Axios handles FormData correctly and sets Content-Type automatically
       // Optimize: Show success immediately for better UX (optimistic update)
-      const response = await apiCall.post('applicants', formData)
-      
-      // Success - update UI immediately
+      const response = await fetch('https://api.efengineering-architect.com/api/applicants', {
+        method: 'POST',
+        body: formData,
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(120000)
+      })
+
       if (response.status === 201 || response.status === 200) {
         setCurrentStep(6)
         setSubmitted(true)
-        setIsLoading(false) // Stop loading immediately
-      } else {
-        setErrors(prev => ({
-          ...prev,
-          notify: 'Failed to submit application. Please try again.'
-        }))
         setIsLoading(false)
+        return
       }
-    } catch (error: any) {
-      // Optimized error handling - faster processing
+
+      let responseData: any = null
+      const responseText = await response.text()
+      try {
+        responseData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        responseData = responseText
+      }
+
+      const serverMessage = typeof responseData === 'object' && responseData
+        ? String(responseData.message || responseData.error || '')
+        : typeof responseData === 'string'
+          ? responseData
+          : ''
+
       let errorMessage = 'Unable to submit your application. Please try again later or contact us directly.'
-      
-      // Handle axios error response - streamlined
-      if (error.response) {
-        const responseData = error.response.data
-        const status = error.response.status
-        
-        // Quick status-based error messages
-        if (status === 500) {
-          errorMessage = 'Server error (500). Please ensure your CV is a valid PDF file and try again. If the problem persists, contact us at info@efengineering.com'
-        } else if (status === 422) {
-          // Extract validation errors if available
-          if (responseData?.errors) {
-            const validationErrors = Object.values(responseData.errors).flat()
-            errorMessage = validationErrors.length > 0 ? validationErrors.join(', ') : 'Validation error. Please check all fields and try again.'
-          } else {
-            errorMessage = 'Validation error. Please check all fields and try again.'
-          }
-        } else if (status === 413) {
-          errorMessage = 'File too large. Please ensure your files are under 10MB and try again.'
-        } else if (status === 400) {
-          errorMessage = responseData?.message || 'Bad request. Please check all fields and try again.'
-        } else {
-          errorMessage = responseData?.message || responseData?.error || `Server error (${status}). Please try again.`
-        }
-        
-        // Try to extract error from HTML response (only if needed)
-        if (errorMessage.includes('Unable to submit') && error.response.request?.responseText) {
-          const htmlText = error.response.request.responseText
-          const errorMatch = htmlText.match(/Error:\s*([^<\n]+)/i) || htmlText.match(/Call to a member function[^<\n]+/i)
-          if (errorMatch) {
-            const extractedError = errorMatch[0].replace(/Error:\s*/i, '').trim()
-            if (extractedError.includes('extension() on null')) {
-              errorMessage = 'File upload error. Please ensure your CV is a valid PDF file and try again. If the problem persists, contact us at info@efengineering.com'
-            } else {
-              errorMessage = `Server error: ${extractedError.substring(0, 150)}`
-            }
-          }
-        }
-        
-        // Log error in development only
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Submission error:', {
-            status,
-            message: errorMessage,
-            data: typeof responseData === 'string' ? responseData.substring(0, 200) : responseData
-          })
-        }
-      } else if (error.request) {
-        errorMessage = 'Network error. Please check your internet connection and try again.'
-      } else if (error.message) {
-        if (error.message.includes('timeout')) {
-          errorMessage = 'Request timed out. Please try again.'
-        } else if (error.message.includes('Network')) {
-          errorMessage = 'Network error. Please check your internet connection and try again.'
-        }
+      if (/mail server|could not deliver mail|TransportException|\b550\b/i.test(serverMessage)) {
+        errorMessage = 'The application reached the server, but the confirmation email could not be delivered to that address. Use an email address that can receive mail and submit again. If you already sent this application, contact info@efengineering-architect.com before sending another copy.'
+      } else if (response.status === 422 && responseData?.errors) {
+        const validationErrors = Object.values(responseData.errors).flat()
+        errorMessage = validationErrors.length > 0 ? String(validationErrors.join(', ')) : 'Validation error. Please check all fields and try again.'
+      } else if (response.status === 413) {
+        errorMessage = 'File too large. Please ensure your files are under 10MB and try again.'
+      } else if (serverMessage.includes('extension() on null')) {
+        errorMessage = 'File upload error. Please upload the CV and supporting document as PDF files and try again.'
+      } else if (serverMessage) {
+        errorMessage = serverMessage.length > 240 ? 'The application server could not finish saving your application. Please try again or contact info@efengineering-architect.com.' : serverMessage
+      } else {
+        errorMessage = `Server error (${response.status}). Please try again.`
       }
-      
+
+      setErrors(prev => ({ ...prev, notify: errorMessage }))
+      setIsLoading(false)
+    } catch (error: any) {
+      const message = error?.message || ''
+      const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError' || message.toLowerCase().includes('timeout')
+      const errorMessage = timedOut
+        ? 'The upload took too long. Please try again with a smaller PDF.'
+        : 'Unable to reach the application server. Please try again in a moment.'
+
       setErrors(prev => ({
         ...prev,
         notify: errorMessage
@@ -675,46 +639,12 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
     let completedFields = 0
     let totalFields = 0
 
-    // Personal Information (9 required fields)
-    const personalFields = ['f_name', 'm_name', 'l_name', 'birth_date', 'email', 'phone_no', 'city', 'cv']
+    const personalFields = ['f_name', 'm_name', 'l_name', 'birth_date', 'email', 'phone_no']
     personalFields.forEach(field => {
       totalFields++
-      if (field === 'cv') {
-        if (personalData.cv) completedFields++
-      } else if (personalData[field as keyof PersonalData]) {
-        completedFields++
-      }
+      if (personalData[field as keyof PersonalData]) completedFields++
     })
 
-    // Education (at least 1 entry with 6 fields each)
-    totalFields += 6 // At least one education entry expected
-    if (educationalData.length > 0) {
-      const edu = educationalData[0]
-      const eduFields = ['study_field', 'company', 'degree_type', 'cgpa', 'start_date', 'end_date']
-      eduFields.forEach(field => {
-        if (edu[field as keyof EducationalData]) completedFields++
-      })
-    }
-
-    // Experience (optional but counted)
-    totalFields += 3 // At least one experience entry expected
-    if (experiences.length > 0) {
-      const exp = experiences[0]
-      if (exp.title) completedFields++
-      if (exp.company) completedFields++
-      if (exp.start_date) completedFields++
-    }
-
-    // Certificates (optional)
-    totalFields += 3 // At least one certificate expected
-    if (certificates.length > 0) {
-      const cert = certificates[0]
-      if (cert.title) completedFields++
-      if (cert.issuer) completedFields++
-      if (cert.date) completedFields++
-    }
-
-    // Documents (CV and supporting doc are both required)
     totalFields += 2
     if (personalData.cv) completedFields++
     if (personalData.supporting_doc) completedFields++
@@ -1208,7 +1138,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
               
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1.5">
-                  City <span className="text-[#F54927]">*</span>
+                  City
                 </label>
                 <div className="relative">
                   <HiOutlineMapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1289,8 +1219,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
               Educational <span className="text-[#F54927]">Information</span>
             </h2>
             <p className="text-gray-600 text-xs mb-2">
-              Fill your educational information here. Click Add Button to save each education entry. 
-              You can add more than one education such as degree, master, etc.
+              Optional. Add education entries if you want, or continue to the next step without them.
             </p>
           </div>
           
@@ -1309,7 +1238,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1.5">
-                  Field of Study <span className="text-[#F54927]">*</span>
+                  Field of Study
                 </label>
                 <input
                   type="text"
@@ -1335,7 +1264,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
               
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1.5">
-                  Institution Name <span className="text-[#F54927]">*</span>
+                  Institution Name
                 </label>
                 <input
                   type="text"
@@ -1361,7 +1290,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
               
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1.5">
-                  Qualification <span className="text-[#F54927]">*</span>
+                  Qualification
                 </label>
                 <input
                   type="text"
@@ -1387,41 +1316,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
               
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1.5">
-                  Final Grade (CGPA) <span className="text-[#F54927]">*</span>
-                </label>
-                <input
-                  type="number"
-                  name="cgpa"
-                  step="0.01"
-                  min="0"
-                  max="5"
-                  value={currentEducation.cgpa}
-                  onChange={(e) => {
-                    // Only allow numeric input with decimal point
-                    const value = e.target.value
-                    // Allow empty, numbers, and single decimal point
-                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                      setCurrentEducation(prev => ({ ...prev, cgpa: value }))
-                      if (educationErrors.cgpa) {
-                        setEducationErrors(prev => ({ ...prev, cgpa: '' }))
-                      }
-                    }
-                  }}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 text-sm ${
-                    educationErrors.cgpa
-                      ? 'border-[#F54927] focus:ring-[#F54927]'
-                      : 'border-gray-300 focus:ring-[#F54927] focus:border-[#F54927]'
-                  }`}
-                  placeholder="e.g., 3.5"
-                />
-                {educationErrors.cgpa && (
-                  <p className="mt-1 text-xs text-[#F54927] font-semibold">{educationErrors.cgpa}</p>
-                )}
-              </div>
-              
-              <div>
-                <label className="block text-xs font-semibold text-gray-900 mb-1.5">
-                  Start Date <span className="text-[#F54927]">*</span>
+                  Start Date
                 </label>
                 <input
                   type="date"
@@ -1446,7 +1341,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
               
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1.5">
-                  End Date <span className="text-[#F54927]">*</span>
+                  End Date
                 </label>
                 <input
                   type="date"
@@ -1491,7 +1386,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
                   <div className="flex-1">
                     <p className="font-bold text-gray-900">{edu.study_field} - {edu.degree_type}</p>
                     <p className="text-sm text-gray-600">{edu.company}</p>
-                    <p className="text-xs text-gray-500">CGPA: {edu.cgpa} | {edu.start_date} to {edu.end_date}</p>
+                    <p className="text-xs text-gray-500">{edu.start_date} to {edu.end_date}</p>
                   </div>
                   <button
                     type="button"
@@ -1515,8 +1410,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
               Work <span className="text-[#F54927]">Experience</span>
             </h2>
             <p className="text-gray-600 text-sm sm:text-base mb-4">
-              Fill your experience information here. Click Add Button to save each experience entry. 
-              You can add more than one experience.
+              Optional. Add work experience if you want, or continue without it.
             </p>
           </div>
           
@@ -1535,7 +1429,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1.5">
-                  Position <span className="text-[#F54927]">*</span>
+                  Position
                 </label>
                 <input
                   type="text"
@@ -1561,7 +1455,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
               
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1.5">
-                  Organization <span className="text-[#F54927]">*</span>
+                  Organization
                 </label>
                 <input
                   type="text"
@@ -1587,7 +1481,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
               
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1.5">
-                  Start Date <span className="text-[#F54927]">*</span>
+                  Start Date
                 </label>
                 <input
                   type="date"
@@ -1612,7 +1506,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
               
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1.5">
-                  End Date {!currentExperience.is_current && <span className="text-[#F54927]">*</span>}
+                  End Date
                 </label>
                 <input
                   type="date"
@@ -1717,8 +1611,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
               Professional <span className="text-[#F54927]">Certificates</span>
             </h2>
             <p className="text-gray-600 text-sm sm:text-base mb-4">
-              Add your certificates here. Click Add Button to save each certificate. 
-              You can add more than one certificate.
+              Optional. Add certificates if you want, or continue to documents without them.
             </p>
           </div>
           
@@ -1737,7 +1630,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1.5">
-                  Certificate Title <span className="text-[#F54927]">*</span>
+                  Certificate Title
                 </label>
                 <input
                   type="text"
@@ -1763,7 +1656,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
               
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1.5">
-                  Issued By <span className="text-[#F54927]">*</span>
+                  Issued By
                 </label>
                 <input
                   type="text"
@@ -1789,7 +1682,7 @@ export default function VacancyApplicationForm({ jobId, jobTitle }: VacancyAppli
               
               <div>
                 <label className="block text-xs font-semibold text-gray-900 mb-1.5">
-                  Issued Date <span className="text-[#F54927]">*</span>
+                  Issued Date
                 </label>
                 <input
                   type="date"

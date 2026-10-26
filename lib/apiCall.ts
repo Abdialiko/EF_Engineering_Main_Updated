@@ -8,7 +8,7 @@ const apiCall = axios.create({
     headers: { 
       "Content-Type": "application/json"
     },
-    timeout: 15000, // 15 seconds timeout (optimized for faster feedback)
+    timeout: 120000,
     withCredentials: false, // Don't send credentials (helps with CORS)
 })
 
@@ -16,8 +16,15 @@ const apiCall = axios.create({
 apiCall.interceptors.request.use(
   (config) => {
     // If data is FormData, remove Content-Type header to let axios set it with boundary
-    if (config.data instanceof FormData) {
-      delete config.headers['Content-Type']
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      const headers = config.headers as { delete?: (name: string) => void } | undefined
+      if (headers && typeof headers.delete === 'function') {
+        headers.delete('Content-Type')
+        headers.delete('content-type')
+      } else if (config.headers) {
+        delete config.headers['Content-Type']
+        delete config.headers['content-type']
+      }
     }
     return config
   },
